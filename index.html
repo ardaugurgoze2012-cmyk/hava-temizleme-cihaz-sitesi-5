@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="tr" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bursa Akıllı Çevre Yönetimi ve Hava Kalitesi Ekosistemi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #090d16;
+            color: #e2e8f0;
+        }
+        .font-mono-tech {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.72);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.18);
+        }
+        .glass-card {
+            background: linear-gradient(145deg, rgba(17, 25, 40, 0.85), rgba(10, 15, 28, 0.95));
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            transition: all 0.25s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(16, 185, 129, 0.45);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px -8px rgba(16, 185, 129, 0.15);
+        }
+        .grid-bg {
+            background-size: 36px 36px;
+            background-image: 
+                linear-gradient(to right, rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+        }
+        #model-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+        }
+        #model-canvas:active {
+            cursor: grabbing;
+        }
+        #cam-preview {
+            transform: scaleX(-1);
+        }
+        #cam-preview canvas {
+            fill: #3DD68C;
+        }
+        input[type="range"] {
+            accent-color: #10b981;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090d16;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #10b981;
+        }
+    </style>
+</head>
+<body class="grid-bg antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- Üst Navigasyon Çubuğu -->
+    <header class="sticky top-0 z-50 glass-panel border-b border-slate-800/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                        <svg class="w-5 h-5 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="font-bold text-white tracking-tight text-sm sm:text-base block leading-none">BURSA ECO-TECH</span>
+                        <span class="text-[11px] font-mono-tech text-emerald-400 tracking-wider">AKILLI ÇEVRE MİMARİSİ v1.0</span>
+                    </div>
+                </div>
+
+                <!-- Masaüstü Menü -->
+                <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
+                    <a href="#sorun" class="hover:text-emerald-400 transition">Bursa Vaka Analizi</a>
+                    <a href="#prototip" class="hover:text-emerald-400 transition">3B Donanım</a>
+                    <a href="#yapay-zeka" class="hover:text-emerald-400 transition">XGBoost & Kaynak Yönü</a>
+                    <a href="#su-aritimi" class="hover:text-emerald-400 transition">İleri Su Arıtımı</a>
+                    <a href="#butce-plan" class="hover:text-emerald-400 transition">Bütçe & İş Planı</a>
+                </nav>
+
+                <!-- Canlı Sistem Durumu Rozeti -->
+                <div class="flex items-center gap-2 bg-slate-900/90 border border-emerald-500/30 px-3 py-1.5 rounded-full">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span class="text-xs font-mono-tech text-emerald-300 hidden sm:inline">OSB SENSÖR AĞI AKTİF</span>
+                    <span class="text-xs font-mono-tech text-emerald-300 sm:hidden">AKTİF</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Bölümü -->
+    <section class="relative pt-12 pb-16 sm:pt-20 sm:pb-24 overflow-hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="grid lg:grid-cols-12 gap-10 items-center">
+                <div class="lg:col-span-7 space-y-6">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/70 border border-cyan-500/30 text-cyan-300 text-xs font-mono-tech">
+                        <span>TÜBİTAK 2204-A / TEKNOFEST UYUMLU AKADEMİK MİMARİ</span>
+                    </div>
+                    <h1 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
+                        Görünmeyeni Sensörlerle İzle, <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Algoritmalarla Anla</span>, İleri Teknolojiyle Temizle.
+                    </h1>
+                    <p class="text-slate-300 text-base sm:text-lg leading-relaxed max-w-2xl">
+                        Bursa sanayi çeperlerinde (Kestel, İnegöl, Nilüfer OSB) düşük maliyetli IoT sensör ağları, 3D baskı radyasyon kalkanı, XGBoost kalibrasyonu ve rüzgâr vektörlü kaynak yönü tahmini ile geleneksel raporlamadan <strong class="text-white">proaktif ve otonom çevre yönetimine</strong> geçiş.
+                    </p>
+                    <div class="flex flex-wrap gap-3 pt-2">
+                        <a href="#prototip" class="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm transition shadow-lg shadow-emerald-500/25 flex items-center gap-2">
+                            <span>3B Prototipi İncele</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                        </a>
+                        <a href="#butce-plan" class="px-5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-white font-semibold text-sm transition">
+                            Bütçe & 18 Aylık İş Planı
+                        </a>
+                    </div>
+
+                    <!-- Özet Metrik Kartları -->
+                    <div class="grid grid-cols-3 gap-3 sm:gap-4 pt-4">
+                        <div class="glass-card p-3.5 rounded-xl">
+                            <div class="text-xl sm:text-2xl font-bold text-emerald-400 font-mono-tech">%85-90</div>
+                            <div class="text-xs text-slate-400 mt-0.5">Maliyet Tasarrufu (225,50 € / Düğüm)</div>
+                        </div>
+                        <div class="glass-card p-3.5 rounded-xl">
+                            <div class="text-xl sm:text-2xl font-bold text-cyan-400 font-mono-tech">R² = 0.999</div>
+                            <div class="text-xs text-slate-400 mt-0.5">XGBoost Kalibrasyon Doğruluğu</div>
+                        </div>
+                        <div class="glass-card p-3.5 rounded-xl">
+                            <div class="text-xl sm:text-2xl font-bold text-purple-400 font-mono-tech">18 OSB</div>
+                            <div class="text-xs text-slate-400 mt-0.5">Hiper-Yerel Hava & Su İzleme Kapsamı</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sağ Taraf: Canlı Simüle Edilmiş Bursa OSB Telemetri Paneli -->
+                <div class="lg:col-span-5">
+                    <div class="glass-panel rounded-2xl p-5 border border-cyan-500/30 shadow-2xl">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                            <div>
+                                <h2 class="text-sm font-bold text-white font-mono-tech">BURSA METROPOLİTAN // CANLI TELEMETRİ</h2>
+                                <p class="text-xs text-slate-400">Düğüm #04 — Kestel OSB Çeper İstasyonu</p>
+                            </div>
+                            <span class="px-2.5 py-1 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-mono-tech" id="live-aqi-badge">AQI: 142 (HASSAS)</span>
+                        </div>
+
+                        <!-- Anlık Sensör Okumaları -->
+                        <div class="grid grid-cols-2 gap-3 mb-4">
+                            <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                                <div class="flex justify-between items-center text-xs text-slate-400">
+                                    <span>PM2.5 (Kalibre)</span>
+                                    <span class="text-emerald-400 font-mono-tech">SPS30</span>
+                                </div>
+                                <div class="text-2xl font-bold text-white font-mono-tech mt-1"><span id="val-pm25">68.4</span> <span class="text-xs font-normal text-slate-400">µg/m³</span></div>
+                                <div class="text-[11px] text-slate-500 mt-1">Ham: 84.1 µg/m³ (Nem Düzeltmeli)</div>
+                            </div>
+                            <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                                <div class="flex justify-between items-center text-xs text-slate-400">
+                                    <span>SO₂ / NOₓ</span>
+                                    <span class="text-cyan-400 font-mono-tech">MQ-135</span>
+                                </div>
+                                <div class="text-2xl font-bold text-white font-mono-tech mt-1"><span id="val-no2">88.0</span> <span class="text-xs font-normal text-slate-400">ppb</span></div>
+                                <div class="text-[11px] text-rose-400 mt-1">▲ Sanayi Yanma İmzası (HOA)</div>
+                            </div>
+                        </div>
+
+                        <!-- Rüzgar Vektörü ve Kaynak Yönü -->
+                        <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 mb-4 flex items-center justify-between">
+                            <div>
+                                <div class="text-xs text-slate-400 mb-1">Hâkim Rüzgâr & Emisyon Kaynak Sektörü</div>
+                                <div class="text-sm font-bold text-cyan-300 font-mono-tech" id="val-wind">135° GD @ 14.2 KT</div>
+                                <div class="text-xs text-slate-300 mt-1">Hedef Sektör: <span class="text-amber-400 font-semibold">Kestel Doğu Sanayi Aksı</span></div>
+                            </div>
+                            <div class="w-16 h-16 rounded-full border border-cyan-500/40 bg-slate-950 relative flex items-center justify-center">
+                                <span class="absolute top-0.5 text-[9px] font-mono-tech text-slate-500">K</span>
+                                <span class="absolute bottom-0.5 text-[9px] font-mono-tech text-slate-500">G</span>
+                                <span class="absolute left-1 text-[9px] font-mono-tech text-slate-500">B</span>
+                                <span class="absolute right-1 text-[9px] font-mono-tech text-slate-500">D</span>
+                                <div id="wind-arrow" class="w-1 h-10 bg-gradient-to-t from-transparent to-cyan-400 rounded-full transition-transform duration-700" style="transform: rotate(135deg);"></div>
+                            </div>
+                        </div>
+
+                        <!-- Sıcaklık & Nem -->
+                        <div class="flex items-center justify-between text-xs text-slate-400 font-mono-tech bg-slate-950/60 px-3 py-2 rounded-lg">
+                            <span>SICAKLIK: <strong class="text-white" id="val-temp">19.4°C</strong></span>
+                            <span>NEM: <strong class="text-white" id="val-hum">62% RH</strong></span>
+                            <span>KORELASYON: <strong class="text-emerald-400">0.89</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bölüm 1: Bursa Vaka Analizi (Fiziksel Kriz & Kirleticiler) -->
+    <section id="sorun" class="py-16 border-t border-slate-800/80 bg-slate-950/40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl mb-12">
+                <span class="text-xs font-mono-tech text-rose-400 uppercase tracking-wider">01 // FİZİKSEL KRİZ VE TOPOĞRAFİK DARBOĞAZ</span>
+                <h2 class="text-2xl sm:text-3xl font-bold text-white mt-2">Bursa Havzasında Sıcaklık Terselmesi ve Emisyon Yükü</h2>
+                <p class="text-slate-400 mt-3 text-sm sm:text-base">
+                    Uludağ ve çevre dağlarla kuşatılmış çanak topoğrafyası, özellikle kış aylarında sıcaklık terselmesi (inversiyon) oluşturarak sanayi ve ulaşım kaynaklı emisyonları havza zemininde hapsetmektedir.
+                </p>
+            </div>
+
+            <!-- 3 Temel Baskı Faktörü -->
+            <div class="grid md:grid-cols-3 gap-6 mb-10">
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">Topoğrafya ve İnversiyon</h3>
+                    <p class="text-sm text-slate-400 leading-relaxed">
+                        Dağlarla çevrili havza yapısında soğuk hava tabakasının sıcak hava katmanı altında sıkışmasıyla dikey hava sirkülasyonu durur ve kirleticiler solunum seviyesinde birikir.
+                    </p>
+                </div>
+
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">18 OSB ve Sanayi Kuşatması</h3>
+                    <p class="text-sm text-slate-400 leading-relaxed">
+                        Şehrin üç tarafını saran 18 Organize Sanayi Bölgesi; özellikle Kestel ve İnegöl hattında kömür ve çimento prosesleri kaynaklı ekstrem <strong class="text-amber-300">SO₂</strong> artışlarına yol açar.
+                    </p>
+                </div>
+
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-4">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">D200 Karayolu Ulaşım Yükü</h3>
+                    <p class="text-sm text-slate-400 leading-relaxed">
+                        Şehri boydan boya kesen D200 devlet karayolu üzerindeki yoğun ağır vasıta ve şehir içi trafik emisyonları coğrafi darboğazda birikerek fotokimyasal duman oluşturur.
+                    </p>
+                </div>
+            </div>
+
+            <!-- 4 Temel Hava Kirleticisi Detay Kartları -->
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-xl">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-mono-tech text-xs px-2 py-0.5 rounded bg-rose-500/20 text-rose-300">PM₁₀ & PM₂.₅</span>
+                        <span class="text-xs text-slate-500">&lt; 10 µm</span>
+                    </div>
+                    <h4 class="font-bold text-white text-sm mb-1.5">Partikül Madde</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Ulaşım kaynaklı PM₁₀ kirliliğinin <strong class="text-slate-200">%54'ü kalitesiz fuel-oil</strong>, <strong class="text-slate-200">%36'sı motorin</strong> kaynaklıdır. Doğrudan kardiyovasküler sisteme nüfuz eder.
+                    </p>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-xl">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-mono-tech text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">NOₓ</span>
+                        <span class="text-xs text-slate-500">Trafik / Yanma</span>
+                    </div>
+                    <h4 class="font-bold text-white text-sm mb-1.5">Azot Oksitler</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Ağırlıklı olarak egzoz emisyonlarından kaynaklanan, atmosferde fotokimyasal duman ve yer seviyesi ozon (O₃) oluşturan reaktif kirletici.
+                    </p>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-xl">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-mono-tech text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300">SO₂</span>
+                        <span class="text-xs text-slate-500">Sanayi / Kestel</span>
+                    </div>
+                    <h4 class="font-bold text-white text-sm mb-1.5">Kükürtdioksit</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Kestel gibi sanayi istasyonlarında sınır değerleri zorlayan, asit yağmuru öncülü ve solunum yolları tetikleyicisi endüstriyel yanma gazı.
+                    </p>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-xl">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-mono-tech text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300">VOC</span>
+                        <span class="text-xs text-slate-500">Tekstil / Otomotiv</span>
+                    </div>
+                    <h4 class="font-bold text-white text-sm mb-1.5">Uçucu Organik Bileşikler</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Bursa'daki geniş tekstil boyahaneleri ve otomotiv tesislerinden yayılan, kümülatif toksik etkileri yüksek karmaşık organik buharlar.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bölüm 2: İnteraktif 3B Bursa Air Monitor Prototipi & Donanım Mimarisi -->
+    <section id="prototip" class="py-16 border-t border-slate-800/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+                <div>
+                    <span class="text-xs font-mono-tech text-emerald-400 uppercase tracking-wider">02 // DONANIM MİMARİSİ VE 3B RADYASYON KALKANI</span>
+                    <h2 class="text-2xl sm:text-3xl font-bold text-white mt-2">Bursa Air Monitor — Modüler IoT İstasyonu</h2>
+                    <p class="text-slate-400 mt-2 text-sm max-w-2xl">
+                        ASA/PETG 3D baskı panjurlu radyasyon kalkanı, güneş ışınımı kaynaklı +2°C ile +4°C termal sapmayı engeller; sensör odasını elektronik kart ısısından izole eder.
+                    </p>
+                </div>
+                <div class="text-xs font-mono-tech text-slate-400 bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
+                    PARADİGMA: <span class="text-emerald-400">Az sayıda kesin veri</span> → <span class="text-cyan-400">Çok sayıda kalibre dinamik veri</span>
+                </div>
+            </div>
+
+            <!-- İnteraktif 3D Görüntüleyici ve Parça Kontrolü -->
+            <div class="grid lg:grid-cols-12 gap-6 mb-12">
+                <!-- 3D Sahne (MediaPipe El Hareketleri + Fare Kontrolü) -->
+                <div id="stage-3d" class="lg:col-span-8 glass-panel rounded-2xl relative h-[480px] sm:h-[550px] overflow-hidden border border-slate-700/80 touch-none">
+                    <canvas id="model-canvas" class="absolute inset-0"></canvas>
+                    
+                    <!-- İşaret Parmağı İmleci -->
+                    <div id="hand-cursor" class="hidden absolute w-6 h-6 -ml-3 -mt-3 border-2 border-emerald-400 rounded-full pointer-events-none shadow-lg shadow-emerald-500/50 z-20"></div>
+
+                    <!-- Üst Kontrol Barı -->
+                    <div class="absolute top-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2 pointer-events-none z-10">
+                        <div class="bg-slate-950/85 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono-tech text-slate-300 pointer-events-auto">
+                            Bursa Air Monitor // 3B El Hareketi & Fare Kontrolü
+                        </div>
+                        <button id="btn-camera" class="pointer-events-auto px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs font-mono-tech transition shadow-lg shadow-emerald-500/20">
+                            Kamerayı Aç (El Kontrolü)
+                        </button>
+                    </div>
+
+                    <!-- Kamera Önizleme Penceresi -->
+                    <div id="cam-preview" class="hidden absolute left-4 bottom-24 w-44 h-32 rounded-xl overflow-hidden border border-emerald-500/50 bg-black shadow-xl z-10">
+                        <video id="hand-video" playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
+                        <canvas id="hand-overlay" width="176" height="132" class="absolute inset-0 w-full h-full object-cover"></canvas>
+                    </div>
+
+                    <!-- Alt Patlatılmış Görünüm (Ayırma) Kaydırıcısı -->
+                    <div class="absolute bottom-4 left-4 right-4 bg-slate-950/90 backdrop-blur p-3.5 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-center gap-3 z-10">
+                        <label for="explode-slider" class="text-xs font-mono-tech text-slate-300 whitespace-nowrap">
+                            AYIRMA: <span id="explode-val" class="text-emerald-400 font-bold">%0</span>
+                        </label>
+                        <input id="explode-slider" type="range" min="0" max="100" value="0" aria-label="Parçaları ayır" class="w-full cursor-pointer">
+                        <div class="flex gap-1.5 shrink-0">
+                            <button onclick="setExplode(0)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono-tech">Birleştir</button>
+                            <button onclick="setExplode(100)" class="px-2.5 py-1 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono-tech">Ayır</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sağ Panel: Parça Listesi, Detay ve El Hareketleri Rehberi -->
+                <div class="lg:col-span-4 flex flex-col gap-4">
+                    <div class="glass-panel rounded-2xl p-4">
+                        <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-2.5 font-mono-tech">Parçalar</h3>
+                        <div id="part-buttons" class="grid grid-cols-1 gap-1.5">
+                            <!-- JS ile doldurulacak -->
+                        </div>
+                    </div>
+
+                    <div id="part-detail-box" aria-live="polite" class="p-4 rounded-2xl bg-slate-900/95 border border-emerald-500/30 min-h-[104px]">
+                        <div class="text-[11px] font-mono-tech text-emerald-400 mb-0.5" id="part-code">PARÇA SEÇİMİ</div>
+                        <h4 class="font-bold text-white text-sm mb-1" id="part-title">Bir parça seç</h4>
+                        <p class="text-xs text-slate-300 leading-relaxed" id="part-desc">
+                            Listeden, modele tıklayarak ya da işaret parmağınla seç.
+                        </p>
+                    </div>
+
+                    <div class="glass-panel rounded-2xl p-4">
+                        <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono-tech">El Hareketleri</h3>
+                        <div class="grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-1.5 text-xs text-slate-400 mb-2.5">
+                            <span class="font-semibold text-emerald-300">İki el:</span><span>İki elini birbirinden uzaklaştır, parçalar ayrılır; yaklaştır, birleşir</span>
+                            <span class="font-semibold text-emerald-300">Tek el, sağa-sola:</span><span>Elini oynat, model döner</span>
+                            <span class="font-semibold text-emerald-300">Tek el, aç-kapa:</span><span>Başparmak ve işaret parmağı açılınca parçalar ayrılır</span>
+                            <span class="font-semibold text-emerald-300">İşaret:</span><span>Yalnızca işaret parmağını uzat, parça seçilir</span>
+                        </div>
+                        <p id="hand-status" class="text-[11px] font-mono-tech text-cyan-300 bg-slate-950/70 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                            Kamera kapalı. Fare ile sürükleyerek de döndürebilirsin.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Geleneksel RGI vs Düşük Maliyetli IoT (LCAQ) Karşılaştırma Tablosu -->
+            <div class="glass-panel rounded-2xl overflow-hidden border border-slate-800">
+                <div class="px-6 py-4 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
+                    <h3 class="font-bold text-white text-base">İzleme Paradigmasının Evrimi: RGI vs. LCAQ IoT Ağları</h3>
+                    <span class="text-xs font-mono-tech text-cyan-400">KARŞILAŞTIRMALI ANALİZ</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-900/90 text-slate-400 text-xs font-mono-tech uppercase">
+                            <tr>
+                                <th class="px-6 py-3.5">Kriter</th>
+                                <th class="px-6 py-3.5">Geleneksel Referans İstasyonları (RGI)</th>
+                                <th class="px-6 py-3.5 text-emerald-400">Düşük Maliyetli IoT Ağları (LCAQ - Önerilen)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/80 text-slate-300">
+                            <tr>
+                                <td class="px-6 py-4 font-semibold text-white">Maliyet ve Kapsama</td>
+                                <td class="px-6 py-4 text-slate-400">150.000 € – 250.000 € kurulum; şehir genelinde yalnızca birkaç seyrek veri noktası.</td>
+                                <td class="px-6 py-4 text-emerald-300 font-medium">225,50 € düğüm maliyeti (%85-90 tasarruf); her OSB çeperine hiper-yerel kapsama.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 font-semibold text-white">Veri Çözünürlüğü & Esneklik</td>
+                                <td class="px-6 py-4 text-slate-400">Çevrimdışı, gecikmeli CSV raporları ve hantal statik veri yapısı.</td>
+                                <td class="px-6 py-4 text-cyan-300 font-medium">JSON formatında gerçek zamanlı MQTT / Web API entegrasyonu; saniyelik reaksiyon.</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 font-semibold text-white">Donanım & Kalibrasyon</td>
+                                <td class="px-6 py-4 text-slate-400">Devasa, sabit, iklimlendirmeli konteyner tipi laboratuvar analizörleri.</td>
+                                <td class="px-6 py-4 text-slate-200">Sensirion SPS30, MQ-135, SHT85, 3D ASA kalkan + <strong class="text-emerald-400">XGBoost ML kalibrasyonu</strong>.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bölüm 3: Yapay Zekâ Kalibrasyonu & Vektörel Kaynak Ayrımı (Source Apportionment) -->
+    <section id="yapay-zeka" class="py-16 border-t border-slate-800/80 bg-slate-950/40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl mb-12">
+                <span class="text-xs font-mono-tech text-cyan-400 uppercase tracking-wider">03 // MAKİNE ÖĞRENMESİ VE KAYNAK AYRIMI</span>
+                <h2 class="text-2xl sm:text-3xl font-bold text-white mt-2">XGBoost Kalibrasyonu ve Dinamik Kaynak Yönü Analizi</h2>
+                <p class="text-slate-400 mt-3 text-sm sm:text-base">
+                    Yüksek bağıl nemde optik sensörlerin su damlacıklarını partikül sanması (higroskopik büyüme) ve sıcaklık sürüklenmeleri, meteorolojik verilerle çaprazlanan XGBoost modeliyle düzeltilir.
+                </p>
+            </div>
+
+            <!-- 4 Aşamalı Kalibrasyon Hattı -->
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+                <div class="glass-card p-5 rounded-xl border-l-4 border-l-slate-500">
+                    <div class="text-xs font-mono-tech text-slate-400 mb-1">AŞAMA 01</div>
+                    <h3 class="font-bold text-white text-sm mb-2">Ham Veri Girişi</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">MQ-135 ve optik PM sensörlerinden alınan ham ve doğrusal olmayan elektriksel sinyaller.</p>
+                </div>
+                <div class="glass-card p-5 rounded-xl border-l-4 border-l-amber-500">
+                    <div class="text-xs font-mono-tech text-amber-400 mb-1">AŞAMA 02</div>
+                    <h3 class="font-bold text-white text-sm mb-2">Çevresel Gürültü Tespiti</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Yüksek nemin oluşturduğu higroskopik büyüme ve dış ortam sıcaklık sapmalarının SHT85 ile ölçümü.</p>
+                </div>
+                <div class="glass-card p-5 rounded-xl border-l-4 border-l-cyan-500">
+                    <div class="text-xs font-mono-tech text-cyan-400 mb-1">AŞAMA 03</div>
+                    <h3 class="font-bold text-white text-sm mb-2">XGBoost ML Filtresi</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Doğrusal olmayan donanım sapmalarının rüzgâr hızı, yönü ve nem verileriyle çaprazlanarak düzeltilmesi.</p>
+                </div>
+                <div class="glass-card p-5 rounded-xl border-l-4 border-l-emerald-500">
+                    <div class="text-xs font-mono-tech text-emerald-400 mb-1">AŞAMA 04</div>
+                    <h3 class="font-bold text-white text-sm mb-2">Referans Kalitesinde Çıktı</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Hata payının %15'in altına düşürülmesi; regülasyon (RGI) eşdeğeri AQI ve kaynak yönü üretimi.</p>
+                </div>
+            </div>
+
+            <!-- Algoritma Performans Karşılaştırması & BVP Kaynak Ayrımı Simülatörü -->
+            <div class="grid lg:grid-cols-12 gap-6">
+                <!-- Sol: XGBoost vs SVM Performans Metrikleri -->
+                <div class="lg:col-span-6 glass-panel p-6 rounded-2xl flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-white text-lg">Algoritma Performans Karşılaştırması</h3>
+                            <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 text-xs font-mono-tech">ŞAMPİYON: XGBOOST</span>
+                        </div>
+
+                        <!-- XGBoost Barları -->
+                        <div class="space-y-4 mb-6">
+                            <div>
+                                <div class="flex justify-between text-xs font-mono-tech mb-1">
+                                    <span class="text-white font-semibold">XGBoost (Regularized) — R² Skoru</span>
+                                    <span class="text-emerald-400 font-bold">0.999</span>
+                                </div>
+                                <div class="w-full bg-slate-800 rounded-full h-2.5">
+                                    <div class="bg-gradient-to-r from-emerald-500 to-cyan-400 h-2.5 rounded-full" style="width: 99.9%"></div>
+                                </div>
+                                <div class="flex gap-4 mt-1.5 text-[11px] font-mono-tech text-slate-400">
+                                    <span>RMSE: <strong class="text-emerald-300">0.234</strong></span>
+                                    <span>MAE: <strong class="text-emerald-300">0.158</strong></span>
+                                </div>
+                            </div>
+
+                            <div class="pt-2 border-t border-slate-800">
+                                <div class="flex justify-between text-xs font-mono-tech mb-1">
+                                    <span class="text-slate-300">Rakip Model: SVM — R² Skoru</span>
+                                    <span class="text-amber-400 font-bold">0.782</span>
+                                </div>
+                                <div class="w-full bg-slate-800 rounded-full h-2.5">
+                                    <div class="bg-amber-500 h-2.5 rounded-full" style="width: 78.2%"></div>
+                                </div>
+                                <div class="flex gap-4 mt-1.5 text-[11px] font-mono-tech text-slate-400">
+                                    <span>RMSE: <strong class="text-rose-400">28.824</strong> (Yüksek Sapma)</span>
+                                    <span>Doğrusal olmayan hava olaylarında düşük performans</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kritik Sistem Uyarısı (Overfitting Koruması) -->
+                    <div class="p-4 rounded-xl bg-amber-950/30 border border-amber-500/30 flex gap-3 items-start">
+                        <svg class="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <div class="text-xs text-amber-200/90 leading-relaxed">
+                            <strong class="text-amber-300 block mb-0.5">Kritik Sistem Uyarısı & Regularization:</strong>
+                            XGBoost'un test setindeki yüksek skoru aşırı öğrenme (overfitting) riski barındırır. Modelin genelleştirme yeteneği L1/L2 düzenlileştirme (regularization) ve çapraz doğrulama parametreleriyle güvence altına alınmıştır.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sağ: İnteraktif Kimyasal Parmak İzi & BVP Kaynak Ayrımı -->
+                <div class="lg:col-span-6 glass-panel p-6 rounded-2xl">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 class="font-bold text-white text-lg">Dinamik Kaynak Ayrımı (Source Apportionment)</h3>
+                            <p class="text-xs text-slate-400">BVP(u, θ) Rüzgâr Vektörü & Moleküler Parmak İzi Sınıflandırması</p>
+                        </div>
+                        <div class="flex gap-1.5" id="source-tabs">
+                            <button onclick="selectSource('sanayi')" class="source-btn px-2.5 py-1 rounded text-xs font-mono-tech bg-cyan-500/20 border border-cyan-500/50 text-cyan-300" data-src="sanayi">Sanayi</button>
+                            <button onclick="selectSource('trafik')" class="source-btn px-2.5 py-1 rounded text-xs font-mono-tech bg-slate-800 border border-slate-700 text-slate-400" data-src="trafik">Trafik (HOA)</button>
+                            <button onclick="selectSource('biyokutle')" class="source-btn px-2.5 py-1 rounded text-xs font-mono-tech bg-slate-800 border border-slate-700 text-slate-400" data-src="biyokutle">Biyokütle (BBOA)</button>
+                        </div>
+                    </div>
+
+                    <!-- Dinamik Spektrum / Parmak İzi Görselleştirmesi -->
+                    <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 mb-4">
+                        <div class="flex justify-between text-xs font-mono-tech text-slate-400 mb-2">
+                            <span id="spec-label">KİMYASAL İMZA: SANAYİ EMİSYONLARI (SO₂ + VOC + AĞIR YANMA)</span>
+                            <span class="text-emerald-400" id="spec-conf">GÜVEN: %96.4</span>
+                        </div>
+                        <div class="h-32 flex items-end gap-1.5 pt-4 px-2 border-b border-slate-800" id="spectrum-bars">
+                            <!-- JS ile dinamik çubuklar -->
+                        </div>
+                        <div class="flex justify-between text-[10px] font-mono-tech text-slate-500 mt-1">
+                            <span>m/z 43</span>
+                            <span>m/z 55</span>
+                            <span>m/z 60</span>
+                            <span>m/z 91</span>
+                            <span>m/z 131</span>
+                            <span>m/z 165</span>
+                            <span>m/z 202</span>
+                        </div>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 leading-relaxed" id="source-action-text">
+                        <strong class="text-cyan-400">Otonom Aksiyon:</strong> Kestel OSB yönünden (135° GD) gelen yüksek SO₂ ve m/z 131-202 spektral pikleri tespit edildi. İlgili sanayi bölgesindeki baca filtresi ve arıtma denetim protokolü otomatik tetiklendi.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bölüm 4: Fiziksel Çözüm — İleri Su Arıtım Teknolojileri -->
+    <section id="su-aritimi" class="py-16 border-t border-slate-800/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl mb-12">
+                <span class="text-xs font-mono-tech text-purple-400 uppercase tracking-wider">04 // FİZİKSEL ÇÖZÜM: İLERİ ATIKSU ARITIMI</span>
+                <h2 class="text-2xl sm:text-3xl font-bold text-white mt-2">İnatçı Kirleticilere Karşı Moleküler ve Biyolojik Müdahale</h2>
+                <p class="text-slate-400 mt-3 text-sm sm:text-base">
+                    Geleneksel biyolojik arıtma tesisleri, sanayi atıksularındaki Kalıcı Organik Kirleticileri (KOK), ağır metalleri (Pb, Hg, Cd) ve mikroplastikleri parçalayamaz. Sensör verileriyle dozajı optimize edilen 4 ileri arıtım teknolojisi devreye alınır.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- 1. Nano-Müdahaleli Membran Biyoreaktörler (NP-MBR) -->
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="px-2.5 py-1 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-mono-tech">NP-MBR + UV</span>
+                        <span class="text-xs text-slate-400">Biyolojik + Nano-Filtrasyon</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">Membran Biyoreaktörler (MBR) ve TiO₂/ZnO Kaplama</h3>
+                    <p class="text-sm text-slate-400 leading-relaxed mb-4">
+                        Biyolojik arıtım ile fiziko-kimyasal membran filtrasyonunu tek ünitede birleştirir. Sistemin en büyük darboğazı olan <strong class="text-slate-200">membran kirlenmesi (fouling - EPS ve SMP tıkanması)</strong>, yüzeye entegre edilen <strong class="text-cyan-300">TiO₂ ve ZnO nanopartiküllerinin</strong> UV ışığıyla aktive olması sayesinde önlenir ve ultra-temiz çıkış suyu elde edilir.
+                    </p>
+                    <div class="flex flex-wrap gap-2 text-[11px] font-mono-tech text-slate-300">
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">Az Alan İhtiyacı</span>
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">Anti-Fouling Yüzey</span>
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">Geri Kazanılabilir Su</span>
+                    </div>
+                </div>
+
+                <!-- 2. Fotokatalitik Oksidasyon -->
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="px-2.5 py-1 rounded bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-mono-tech">KUANTUM SIÇRAMASI</span>
+                        <span class="text-xs text-slate-400">İleri Oksidasyon Prosesi</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">Fotokatalitik Oksidasyon (e⁻/h⁺ Çiftleri)</h3>
+                    <p class="text-sm text-slate-400 leading-relaxed mb-4">
+                        UV ışığının TiO₂ katalizör yüzeyine çarpmasıyla oluşan elektron-delik (e⁻/h⁺) çiftleri, reaksiyon aktivasyon enerjisini (Eₐ) dramatik şekilde düşürür. Oluşan serbest radikaller; <strong class="text-purple-300">tekstil boyaları, ilaç kalıntıları ve KOK'ları</strong> moleküler düzeyde zararsız H₂O, CO₂ ve mineral tuzlara parçalar.
+                    </p>
+                    <div class="flex flex-wrap gap-2 text-[11px] font-mono-tech text-slate-300">
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">Tekstil Boyası Giderimi</span>
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">Düşük Aktivasyon Enerjisi</span>
+                    </div>
+                </div>
+
+                <!-- 3. Doğadan İlham Alan Arıtım: Mikroalgler -->
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="px-2.5 py-1 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono-tech">DÖNGÜSEL BİYOLOJİK MOTOR</span>
+                        <span class="text-xs text-slate-400">Atıktan Kaynağa</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">Mikroalg Biyoreaktörleri ve Karbon Asimilasyonu</h3>
+                    <p class="text-sm text-slate-400 leading-relaxed mb-4">
+                        Endüstriyel atıksudaki zehirli azot, fosfor ve ağır metaller (Pb, Hg, Cd) mikroalgler tarafından hücresel besin olarak tüketilir. <strong class="text-emerald-300">%1-6 oranında CO₂ enjeksiyonu</strong> ile fotosentez hızlandırılır; çıktı olarak temiz su, saf O₂ ve biyoyakıt potansiyelli lipid bazlı değerli biyokütle üretilir.
+                    </p>
+                    <div class="flex flex-wrap gap-2 text-[11px] font-mono-tech text-slate-300">
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">CO₂ Tutulumu</span>
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">Lipid Biyokütle Üretimi</span>
+                    </div>
+                </div>
+
+                <!-- 4. Mikroplastik Giderimi -->
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="px-2.5 py-1 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-mono-tech">200 µm - 1 mm</span>
+                        <span class="text-xs text-slate-400">PE / PP / PS Giderimi</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-2">Mikroplastiklerde Manyetik Ayırma & Biyoremediasyon</h3>
+                    <p class="text-sm text-slate-400 leading-relaxed mb-4">
+                        Polietilen (PE), Polipropilen (PP) ve Polistiren (PS) partikülleri için çift kademeli çözüm: <strong class="text-amber-300">Fe₃O₄ demir oksit nanopartikülleri</strong> ile manyetik çekim sayesinde <strong class="text-white">%84 - %93 geri kazanım</strong>; ardından <em>Pseudomonas</em> ve <em>Bacillus</em> bakteri kültürleriyle 120 günde <strong class="text-white">%55 - %75 biyolojik parçalanma</strong>.
+                    </p>
+                    <div class="flex flex-wrap gap-2 text-[11px] font-mono-tech text-slate-300">
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">Fe₃O₄ Manyetik Yakalama</span>
+                        <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">Bakteriyel Polimer Sindirimi</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bölüm 5: Proje Bütçesi, 18 Aylık İş Planı ve Risk Yönetimi -->
+    <section id="butce-plan" class="py-16 border-t border-slate-800/80 bg-slate-950/50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl mb-10">
+                <span class="text-xs font-mono-tech text-emerald-400 uppercase tracking-wider">05 // UYGULAMA, MALİYET VE YÖNETİŞİM PLANI</span>
+                <h2 class="text-2xl sm:text-3xl font-bold text-white mt-2">Düğüm Başı Bütçe Analizi, 18 Aylık İş Planı ve Risk Matrisi</h2>
+                <p class="text-slate-400 mt-2 text-sm">
+                    Kestel, İnegöl ve Nilüfer OSB çeperlerinde konuşlandırılacak modüler IoT istasyonlarının birim maliyet dökümü ve akademik yol haritası.
+                </p>
+            </div>
+
+            <!-- Sekme Seçici -->
+            <div class="flex flex-wrap gap-2 mb-6" id="plan-tabs">
+                <button onclick="switchPlanTab('butce')" class="plan-tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-500 text-slate-950 transition" data-tab="butce">
+                    1. Detaylı Bütçe Tablosu (225,50 €)
+                </button>
+                <button onclick="switchPlanTab('isplani')" class="plan-tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700 transition" data-tab="isplani">
+                    2. 18 Aylık İş Paketleri (İP1 - İP6)
+                </button>
+                <button onclick="switchPlanTab('risk')" class="plan-tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700 transition" data-tab="risk">
+                    3. Risk Yönetimi & Kalite Güvencesi
+                </button>
+            </div>
+
+            <!-- Sekme 1: Bütçe Tablosu & Ağ Maliyet Hesaplayıcı -->
+            <div id="tab-butce" class="plan-tab-content space-y-6">
+                <!-- İnteraktif Düğüm Sayısı Hesaplayıcı -->
+                <div class="glass-panel p-5 rounded-2xl border border-emerald-500/30 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h3 class="font-bold text-white text-base">OSB Sensör Ağı Maliyet & Tasarruf Simülatörü</h3>
+                        <p class="text-xs text-slate-400">Kurulacak IoT istasyon düğümü sayısını seçerek geleneksel RGI istasyonlarıyla maliyet farkını hesaplayın.</p>
+                    </div>
+                    <div class="flex items-center gap-4 w-full md:w-auto">
+                        <div class="flex-1 md:w-48">
+                            <label class="text-xs font-mono-tech text-slate-300 block mb-1">DÜĞÜM SAYISI: <strong id="node-count-label" class="text-emerald-400">5 Düğüm (Kestel OSB)</strong></label>
+                            <input id="node-slider" type="range" min="1" max="25" value="5" class="w-full">
+                        </div>
+                        <div class="text-right shrink-0 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800">
+                            <div class="text-[11px] text-slate-400 font-mono-tech">TOPLAM AĞ MALİYETİ</div>
+                            <div class="text-xl font-bold text-emerald-400 font-mono-tech" id="total-network-cost">1.127,50 €</div>
+                            <div class="text-[10px] text-cyan-400 font-mono-tech" id="total-savings">Tasarruf: ~998.872 €</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel rounded-2xl overflow-hidden border border-slate-800">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-900 text-slate-400 text-xs font-mono-tech uppercase">
+                                <tr>
+                                    <th class="px-6 py-3.5">Bütçe Kalemi</th>
+                                    <th class="px-6 py-3.5">Detay / Malzeme Açıklaması</th>
+                                    <th class="px-6 py-3.5">Miktar</th>
+                                    <th class="px-6 py-3.5 text-right">Birim Fiyat (€)</th>
+                                    <th class="px-6 py-3.5 text-right">Toplam (€)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/80 text-slate-300">
+                                <tr>
+                                    <td class="px-6 py-3.5 font-semibold text-white">Donanım - İşlemci</td>
+                                    <td class="px-6 py-3.5">ESP32 Wi-Fi/BLE Geliştirme Kartı + RTC DS1302 Modülü</td>
+                                    <td class="px-6 py-3.5 font-mono-tech text-xs">1 Adet</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech">12,50 €</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech text-white">12,50 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-3.5 font-semibold text-white">Donanım - Sensörler</td>
+                                    <td class="px-6 py-3.5">Sensirion SPS30 (PM) + MQ135 + SHT85 Termo-Higrometre</td>
+                                    <td class="px-6 py-3.5 font-mono-tech text-xs">1 Set</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech">55,00 €</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech text-white">55,00 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-3.5 font-semibold text-white">Donanım - Rüzgâr Ölçüm</td>
+                                    <td class="px-6 py-3.5">Mini Anemometre (Hız) + Açısal Rüzgâr Gülü Modülü</td>
+                                    <td class="px-6 py-3.5 font-mono-tech text-xs">1 Set</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech">28,00 €</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech text-white">28,00 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-3.5 font-semibold text-white">Mekanik - 3D Filament</td>
+                                    <td class="px-6 py-3.5">ASA / PETG Mühendislik Filamenti (Radyasyon Kalkanı & Braket)</td>
+                                    <td class="px-6 py-3.5 font-mono-tech text-xs">0.5 kg</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech">15,00 €</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech text-white">15,00 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-3.5 font-semibold text-white">Mekanik - Gövde & Bağlantı</td>
+                                    <td class="px-6 py-3.5">IP66 Su Geçirmez Kutu, Paslanmaz Boru (SS304) ve Kelepçeler</td>
+                                    <td class="px-6 py-3.5 font-mono-tech text-xs">1 Set</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech">18,00 €</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech text-white">18,00 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-3.5 font-semibold text-white">Güç Ünitesi</td>
+                                    <td class="px-6 py-3.5">10W Monokristal Solar Panel + TP4056 Şarj Kartı + LiFePO4 Batarya</td>
+                                    <td class="px-6 py-3.5 font-mono-tech text-xs">1 Set</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech">22,00 €</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech text-white">22,00 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-3.5 font-semibold text-white">Saha & Kalibrasyon</td>
+                                    <td class="px-6 py-3.5">MTHM Referans İstasyon Paralelleştirme & Gaz Tüpü Test Hizmeti</td>
+                                    <td class="px-6 py-3.5 font-mono-tech text-xs">1 Hizmet</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech">35,00 €</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech text-white">35,00 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-3.5 font-semibold text-white">Yazılım & Bulut Sunucu</td>
+                                    <td class="px-6 py-3.5">MQTT Broker, AWS/Edge AI Bulut Sunucu ve Web Dashboard (Yıllık)</td>
+                                    <td class="px-6 py-3.5 font-mono-tech text-xs">1 Lisans</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech">40,00 €</td>
+                                    <td class="px-6 py-3.5 text-right font-mono-tech text-white">40,00 €</td>
+                                </tr>
+                            </tbody>
+                            <tfoot class="bg-emerald-950/40 border-t-2 border-emerald-500/40">
+                                <tr>
+                                    <td colspan="4" class="px-6 py-4 font-bold text-white">TOPLAM BÜTÇE (Tam Donanımlı 1 Adet IoT İzleme Düğümü ve 1 Yıllık Bulut Dahil)</td>
+                                    <td class="px-6 py-4 text-right font-extrabold text-emerald-400 font-mono-tech text-base">225,50 €</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sekme 2: 18 Aylık İş Planı (Gantt & İş Paketleri) -->
+            <div id="tab-isplani" class="plan-tab-content hidden space-y-6">
+                <div class="glass-panel p-6 rounded-2xl border border-slate-800">
+                    <h3 class="font-bold text-white text-base mb-5">18 Aylık Akademik Çalışma Planı ve Zaman Çizelgesi</h3>
+                    <div class="space-y-4">
+                        <!-- İP1 -->
+                        <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                                <span class="font-bold text-white text-sm">İP1: Literatür ve Veri Altyapısı</span>
+                                <span class="text-xs font-mono-tech px-2.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300">AY 1 - 3</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-2">
+                                <div class="bg-cyan-400 h-full rounded-full" style="width: 16.6%; margin-left: 0%;"></div>
+                            </div>
+                            <p class="text-xs text-slate-400">Bursa meteoroloji ve MTHM hava kalitesi tarihsel veri setlerinin derlenmesi. <strong class="text-slate-200">Çıktı:</strong> Veri tabanı mimarisi ve literatür raporu.</p>
+                        </div>
+
+                        <!-- İP2 -->
+                        <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                                <span class="font-bold text-white text-sm">İP2: 3D Radyasyon Kalkanı & Donanım Entegrasyonu</span>
+                                <span class="text-xs font-mono-tech px-2.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300">AY 3 - 6</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-2">
+                                <div class="bg-cyan-400 h-full rounded-full" style="width: 16.6%; margin-left: 16.6%;"></div>
+                            </div>
+                            <p class="text-xs text-slate-400">CAD ortamında ASA kalkan tasarımı, 3D baskı üretimi ve ESP32/Arduino devre montajı. <strong class="text-slate-200">Çıktı:</strong> Çalışır prototip istasyon düğümü.</p>
+                        </div>
+
+                        <!-- İP3 -->
+                        <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                                <span class="font-bold text-white text-sm">İP3: Saha Kalibrasyonu & Nem Düzeltmesi</span>
+                                <span class="text-xs font-mono-tech px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">AY 6 - 9</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-2">
+                                <div class="bg-emerald-400 h-full rounded-full" style="width: 16.6%; margin-left: 33.3%;"></div>
+                            </div>
+                            <p class="text-xs text-slate-400">Referans MTHM istasyonu yanında paralelleştirme, Bayes optimizasyonlu nem düzeltmesi. <strong class="text-slate-200">Çıktı:</strong> Kalibrasyon katsayıları ve R² &gt; 0.85 doğrulaması.</p>
+                        </div>
+
+                        <!-- İP4 -->
+                        <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                                <span class="font-bold text-white text-sm">İP4: Yapay Zekâ & BVP Vektörel Model Eğitimi</span>
+                                <span class="text-xs font-mono-tech px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">AY 9 - 12</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-2">
+                                <div class="bg-emerald-400 h-full rounded-full" style="width: 16.6%; margin-left: 50%;"></div>
+                            </div>
+                            <p class="text-xs text-slate-400">BVP matris dönüşümleri, Random Forest ve XGBoost modellerinin eğitimi. <strong class="text-slate-200">Çıktı:</strong> Anlık bacasal emisyon kaynak yönü tahmin algoritması.</p>
+                        </div>
+
+                        <!-- İP5 -->
+                        <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                                <span class="font-bold text-white text-sm">İP5: Kestel & İnegöl OSB Saha Kurulumu</span>
+                                <span class="text-xs font-mono-tech px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300">AY 12 - 15</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-2">
+                                <div class="bg-purple-400 h-full rounded-full" style="width: 16.6%; margin-left: 66.6%;"></div>
+                            </div>
+                            <p class="text-xs text-slate-400">OSB çeperinde 5 düğümlü IoT sensör ağının konuşlandırılması ve saha testleri. <strong class="text-slate-200">Çıktı:</strong> Gerçek zamanlı saha doğrulaması ve canlı veri yayını.</p>
+                        </div>
+
+                        <!-- İP6 -->
+                        <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+                                <span class="font-bold text-white text-sm">İP6: Web Karar Destek Arayüzü & Akademik Yayın</span>
+                                <span class="text-xs font-mono-tech px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300">AY 15 - 18</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden mb-2">
+                                <div class="bg-purple-400 h-full rounded-full" style="width: 16.8%; margin-left: 83.2%;"></div>
+                            </div>
+                            <p class="text-xs text-slate-400">Karar destek web arayüzünün yaygınlaştırılması, uluslararası makale ve proje kapanışı. <strong class="text-slate-200">Çıktı:</strong> Akademik yayın ve nihai proje raporu.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sekme 3: Risk Yönetimi -->
+            <div id="tab-risk" class="plan-tab-content hidden">
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="glass-panel p-5 rounded-2xl border-l-4 border-l-rose-500">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-bold text-white text-sm">Güneş Radyasyonu Termal Isınması</h4>
+                            <span class="px-2 py-0.5 rounded text-[11px] font-mono-tech bg-rose-500/20 text-rose-300">RİSK: YÜKSEK</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-2"><strong class="text-slate-300">Etki:</strong> Güneş ışığının sensör gövdesini ısıtarak +2°C ile +4°C hatalı ölçüm oluşturması.</p>
+                        <p class="text-xs text-emerald-300"><strong class="text-emerald-400">Önleyici Tedbir:</strong> 3D baskılı UV dayanımlı ASA/PETG panjurlu radyasyon kalkanı ve iç fanlı aktif havalandırma (forced aspiration).</p>
+                    </div>
+
+                    <div class="glass-panel p-5 rounded-2xl border-l-4 border-l-amber-500">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-bold text-white text-sm">Yüksek Bağıl Nem (RH) Sapması</h4>
+                            <span class="px-2 py-0.5 rounded text-[11px] font-mono-tech bg-amber-500/20 text-amber-300">RİSK: ORTA</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-2"><strong class="text-slate-300">Etki:</strong> Optik PM sensörünün su damlacıklarını partikül sanması ve yapay yüksek PM okuması.</p>
+                        <p class="text-xs text-emerald-300"><strong class="text-emerald-400">Önleyici Tedbir:</strong> Sensirion SHT85 yüksek hassasiyetli nem sensörü verisiyle Bayes optimizasyonlu regresyon ve XGBoost kalibrasyonu.</p>
+                    </div>
+
+                    <div class="glass-panel p-5 rounded-2xl border-l-4 border-l-amber-500">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-bold text-white text-sm">Sensör Sürüklenmesi (Drift)</h4>
+                            <span class="px-2 py-0.5 rounded text-[11px] font-mono-tech bg-amber-500/20 text-amber-300">RİSK: ORTA</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-2"><strong class="text-slate-300">Etki:</strong> Zamanla elektrokimyasal gaz ve optik PM sensörlerinde sıfır noktası ve hassasiyet kaybı.</p>
+                        <p class="text-xs text-emerald-300"><strong class="text-emerald-400">Önleyici Tedbir:</strong> 6 ayda bir dinamik sahada MTHM referans cihazı paralelleştirmesi ve OTA yazılımsal kalibrasyon güncellemesi.</p>
+                    </div>
+
+                    <div class="glass-panel p-5 rounded-2xl border-l-4 border-l-cyan-500">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-bold text-white text-sm">Aşındırıcı Sanayi Gazları</h4>
+                            <span class="px-2 py-0.5 rounded text-[11px] font-mono-tech bg-cyan-500/20 text-cyan-300">RİSK: DÜŞÜK</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-2"><strong class="text-slate-300">Etki:</strong> OSB çeperindeki asidik gazların (SO₂, NOₓ) elektronik devre kartını korozyona uğratması.</p>
+                        <p class="text-xs text-emerald-300"><strong class="text-emerald-400">Önleyici Tedbir:</strong> PCB yüzeyine koruyucu konformal kaplama (Conformal Coating) uygulanması ve IP66 sızdırmaz muhafaza kutusu.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Alt Bilgi (Footer) -->
+    <footer class="border-t border-slate-800/80 py-10 bg-slate-950 text-center sm:text-left">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+                <div class="font-bold text-white text-sm">Bursa Akıllı Şehir ve Çevre Yönetimi Ekosistemi</div>
+                <div class="text-xs text-slate-400 mt-1">Veri, Algoritmalar ve İleri Arıtım Teknolojileriyle Sürdürülebilir Bir Ekosistem (Bursa Vaka Çalışması)</div>
+            </div>
+            <div class="text-xs font-mono-tech text-slate-500">
+                TÜBİTAK 2204-A / TEKNOFEST UYUMLU RAPOR PORTALI | V1.0
+            </div>
+        </div>
+    </footer>
+
+    <!-- İnteraktif 3D ve Veri Simülasyonu Scriptleri -->
+    <script>
+        // ==========================================
+        // 1. THREE.JS & MEDIAPIPE EL HAREKETLERİ İLE 3B MODEL
+        // ==========================================
+        const stage3d = document.getElementById('stage-3d');
+        const canvas = document.getElementById('model-canvas');
+        const explodeSlider = document.getElementById('explode-slider');
+        const explodeValLabel = document.getElementById('explode-val');
+        const handStatus = document.getElementById('hand-status');
+        const handCursor = document.getElementById('hand-cursor');
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 60);
+        camera.position.set(0, 1.2, 12.5);
+        camera.lookAt(0, 0, 0);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(4, 8, 6);
+        scene.add(dirLight);
+
+        const rootGroup = new THREE.Group();
+        rootGroup.position.y = -2.1;
+        scene.add(rootGroup);
+
+        function mk(w, h, d, x, y, z, c, o) {
+            const m = new THREE.Mesh(
+                new THREE.BoxGeometry(w, h, d),
+                new THREE.MeshStandardMaterial({
+                    color: c,
+                    roughness: 0.75,
+                    metalness: 0.1,
+                    transparent: !!o,
+                    opacity: o || 1,
+                    emissive: 0x000000
+                })
+            );
+            m.position.set(x, y, z);
+            m.userData.y0 = y;
+            return m;
+        }
+
+        const partsData = [
+            {
+                id: 'cap',
+                code: 'MODÜL 01 // KORUMA',
+                name: 'Üst kapak',
+                desc: 'Kalkan katmanlarını üstten kapatır. Yağmurdan ve doğrudan güneşten korur.',
+                dir: [0, 1.8, 0],
+                m: () => [mk(2.4, 0.2, 2.2, 0, 4.25, 0, 0x5E676C)]
+            },
+            {
+                id: 'shield',
+                code: 'MODÜL 02 // PASİF HAVALANDIRMA',
+                name: 'Radyasyon kalkanı',
+                desc: 'Beş pasif havalandırmalı katman. Güneş ısınmasını azaltır, hava aralardan akar.',
+                dir: [0, 1.1, 0],
+                m: () => [0, 1, 2, 3, 4].map(i => {
+                    const s = mk(2.8, 0.12, 2.5, 0, 3.1 + i * 0.22, 0, 0x8E979B);
+                    s.userData.s = i;
+                    return s;
+                })
+            },
+            {
+                id: 'collar',
+                code: 'MODÜL 03 // HAVA AKIŞ YÖNLENDİRME',
+                name: 'Hava giriş yakası',
+                desc: 'Labirent girişli modül. Yağmur ve böceği keser, havayı sensör odasına yönlendirir. B ve C varyantlarında değişen parçalardan biridir.',
+                dir: [0, 0.55, 0],
+                m: () => [mk(2.6, 0.3, 2.4, 0, 2.75, 0, 0x7C868B)]
+            },
+            {
+                id: 'chamber',
+                code: 'MODÜL 04 // İZOLE SENSÖR ODASI',
+                name: 'Sensör odası',
+                desc: 'PM2.5 ve nem-ısı sensörleri burada durur. Isı kaynağı olan karttan ayrı tutulur.',
+                dir: [0, 0, 0],
+                m: () => [
+                    mk(2.2, 0.9, 2, 0, 2.1, 0, 0x9FB6C1, 0.28),
+                    mk(0.8, 0.5, 0.8, -0.5, 2.1, 0, 0x2E9C8A),
+                    mk(0.6, 0.4, 0.6, 0.55, 2.1, 0, 0x7466C7)
+                ]
+            },
+            {
+                id: 'elec',
+                code: 'MODÜL 05 // VERİ KAYIT & KONTROL',
+                name: 'Elektronik gövde',
+                desc: 'Arduino kartı, RTC ve SD kart. Zaman damgalı veriyi yerel olarak kaydeder.',
+                dir: [0, -0.6, 0],
+                m: () => [
+                    mk(3, 1.5, 2.6, 0, 0.87, 0, 0x7C868B),
+                    mk(0.14, 0.14, 0.05, 0.5, 1.25, 1.32, 0x3DD68C),
+                    mk(1.8, 0.2, 0.03, -0.3, 0.35, 1.32, 0xC9CFD2)
+                ]
+            },
+            {
+                id: 'side',
+                code: 'MODÜL 06 // BESLEME',
+                name: 'Yan bölme',
+                desc: '5V/USB güç girişi. Şebeke gerilimine bağlanmaz.',
+                dir: [1.4, -0.6, 0],
+                m: () => [mk(0.6, 0.9, 2.2, 1.8, 0.57, 0, 0x6A7479)]
+            },
+            {
+                id: 'base',
+                code: 'MODÜL 07 // ŞASİ & MONTAJ',
+                name: 'Taban ve ayaklar',
+                desc: 'Taban plakası ve dört kauçuk ayak.',
+                dir: [0, -1.3, 0],
+                m: () => [
+                    mk(3.6, 0.12, 3, 0, 0.06, 0, 0x5E676C),
+                    ...[[-1.4, -1.1], [1.4, -1.1], [-1.4, 1.1], [1.4, 1.1]].map(
+                        p => mk(0.3, 0.1, 0.3, p[0], -0.05, p[1], 0x30373A)
+                    )
+                ]
+            }
+        ];
+
+        const partGroups = {};
+        const partButtonsMap = {};
+        const partButtonsContainer = document.getElementById('part-buttons');
+
+        partsData.forEach(p => {
+            const g = new THREE.Group();
+            p.m().forEach(mesh => {
+                mesh.userData.id = p.id;
+                g.add(mesh);
+            });
+            partGroups[p.id] = g;
+            rootGroup.add(g);
+
+            const b = document.createElement('button');
+            b.className = 'w-full text-left px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 transition flex items-center justify-between';
+            b.innerHTML = `<span>${p.name}</span><span class="text-[10px] font-mono-tech text-slate-500">Seç</span>`;
+            b.onclick = () => selectPart(p.id);
+            partButtonsContainer.appendChild(b);
+            partButtonsMap[p.id] = b;
+        });
+
+        let selId = null;
+        function selectPart(id) {
+            if (id === selId) return;
+            selId = id;
+            partsData.forEach(p => {
+                const on = p.id === id;
+                const btn = partButtonsMap[p.id];
+                btn.className = on
+                    ? 'w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 transition flex items-center justify-between'
+                    : 'w-full text-left px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 transition flex items-center justify-between';
+
+                partGroups[p.id].children.forEach(m => m.material.emissive.setHex(on ? 0x1F9D5B : 0x000000));
+
+                if (on) {
+                    document.getElementById('part-code').textContent = p.code;
+                    document.getElementById('part-title').textContent = p.name;
+                    document.getElementById('part-desc').textContent = p.desc;
+                }
+            });
+        }
+
+        const raycaster = new THREE.Raycaster();
+        function pickPart(nx, ny) {
+            raycaster.setFromCamera({ x: nx, y: ny }, camera);
+            const h = raycaster.intersectObjects(rootGroup.children, true)[0];
+            return h ? h.object.userData.id : null;
+        }
+
+        let ex = 0, exT = 0, ry = 0, ryT = 0, rx = 0, rxT = 0, lastHand = 0;
+
+        function setExplode(val) {
+            explodeSlider.value = val;
+            exT = val / 100;
+            explodeValLabel.textContent = `%${Math.round(val)}`;
+        }
+
+        explodeSlider.oninput = () => {
+            exT = explodeSlider.value / 100;
+            explodeValLabel.textContent = `%${explodeSlider.value}`;
+        };
+
+        let drag = null;
+        canvas.addEventListener('pointerdown', e => {
+            drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY };
+            canvas.setPointerCapture(e.pointerId);
+        });
+        canvas.addEventListener('pointermove', e => {
+            if (!drag) return;
+            ryT += (e.clientX - drag.x) * 0.01;
+            rxT = Math.max(-0.6, Math.min(0.6, rxT + (e.clientY - drag.y) * 0.005));
+            drag.x = e.clientX;
+            drag.y = e.clientY;
+        });
+        canvas.addEventListener('pointerup', e => {
+            if (drag && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 5) {
+                const r = canvas.getBoundingClientRect();
+                const id = pickPart(
+                    ((e.clientX - r.left) / r.width) * 2 - 1,
+                    -(((e.clientY - r.top) / r.height) * 2 - 1)
+                );
+                if (id) selectPart(id);
+            }
+            drag = null;
+        });
+
+        function resizeRenderer() {
+            const w = stage3d.clientWidth;
+            const h = stage3d.clientHeight;
+            renderer.setSize(w, h, false);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', resizeRenderer);
+        resizeRenderer();
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            ex += (exT - ex) * 0.15;
+            ry += (ryT - ry) * 0.12;
+            rx += (rxT - rx) * 0.12;
+            rootGroup.rotation.y = ry;
+            rootGroup.rotation.x = rx;
+
+            partsData.forEach(p => {
+                const g = partGroups[p.id];
+                g.position.set(p.dir[0] * ex, p.dir[1] * ex, p.dir[2] * ex);
+                g.children.forEach(m => {
+                    if (m.userData.s !== undefined) {
+                        m.position.y = m.userData.y0 + (m.userData.s - 2) * 0.28 * ex;
+                    }
+                });
+            });
+            renderer.render(scene, camera);
+        }
+        animate3D();
+
+        // MediaPipe Hands Entegrasyonu
+        const overlayCanvas = document.getElementById('hand-overlay');
+        const overlayCtx = overlayCanvas.getContext('2d');
+
+        function onHandResults(r) {
+            const H = r.multiHandLandmarks || [];
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            if (!H.length) {
+                handCursor.style.display = 'none';
+                if (performance.now() - lastHand > 400) {
+                    handStatus.textContent = 'El görünmüyor. Ellerini kameraya göster.';
+                }
+                return;
+            }
+            lastHand = performance.now();
+
+            H.forEach(h => h.forEach(p => {
+                overlayCtx.beginPath();
+                overlayCtx.arc(p.x * overlayCanvas.width, p.y * overlayCanvas.height, 2.5, 0, 6.3);
+                overlayCtx.fill();
+            }));
+
+            if (H.length >= 2) {
+                handCursor.style.display = 'none';
+                const a = H[0][9], b = H[1][9];
+                exT = Math.max(0, Math.min(1, (Math.hypot(a.x - b.x, a.y - b.y) - 0.15) / 0.5));
+                const pct = Math.round(exT * 100);
+                explodeSlider.value = pct;
+                explodeValLabel.textContent = `%${pct}`;
+                handStatus.textContent = 'İki el algılandı: ellerini açtıkça parçalar ayrılır.';
+                return;
+            }
+
+            const l = H[0];
+            const d = (a, b) => Math.hypot(l[a].x - l[b].x, l[a].y - l[b].y);
+            const pointing = l[8].y < l[6].y && l[12].y > l[10].y && l[16].y > l[14].y && l[20].y > l[18].y;
+
+            if (pointing) {
+                const x = 1 - l[8].x;
+                const y = l[8].y;
+                handCursor.style.display = 'block';
+                handCursor.style.left = x * 100 + '%';
+                handCursor.style.top = y * 100 + '%';
+                const id = pickPart(x * 2 - 1, -(y * 2 - 1));
+                if (id) selectPart(id);
+                handStatus.textContent = 'İşaret modu: parça seçiliyor.';
+            } else {
+                handCursor.style.display = 'none';
+                ryT = ((1 - l[9].x) - 0.5) * Math.PI * 2;
+                rxT = (l[9].y - 0.5) * 0.8;
+                exT = Math.max(0, Math.min(1, (d(4, 8) / d(0, 9) - 0.2) / 0.8));
+                const pct = Math.round(exT * 100);
+                explodeSlider.value = pct;
+                explodeValLabel.textContent = `%${pct}`;
+                handStatus.textContent = 'Tek el: döndürme ve ayırma aktif.';
+            }
+        }
+
+        document.getElementById('btn-camera').onclick = async function () {
+            if (typeof Hands === 'undefined') {
+                handStatus.textContent = 'MediaPipe yüklenemedi. İnternet bağlantısını kontrol et.';
+                return;
+            }
+            this.disabled = true;
+            this.textContent = 'Açılıyor...';
+            try {
+                const v = document.getElementById('hand-video');
+                v.srcObject = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480, facingMode: 'user' }
+                });
+                await v.play();
+                document.getElementById('cam-preview').style.display = 'block';
+
+                const hands = new Hands({
+                    locateFile: f => 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/' + f
+                });
+                hands.setOptions({
+                    maxNumHands: 2,
+                    modelComplexity: 0,
+                    minDetectionConfidence: 0.6,
+                    minTrackingConfidence: 0.5
+                });
+                hands.onResults(onHandResults);
+                handStatus.textContent = 'Model yükleniyor, birkaç saniye sürebilir.';
+
+                (async function loop() {
+                    await hands.send({ image: v });
+                    requestAnimationFrame(loop);
+                })();
+
+                this.textContent = 'Kamera Açık';
+            } catch (e) {
+                this.disabled = false;
+                this.textContent = 'Kamerayı Aç (El Kontrolü)';
+                handStatus.textContent = 'Kamera açılamadı. Tarayıcıda kamera iznini verin.';
+            }
+        };
+
+        // ==========================================
+        // 2. KAYNAK AYRIMI (SPEKTRUM) SEKMELERİ
+        // ==========================================
+        const sourceProfiles = {
+            sanayi: {
+                label: 'KİMYASAL İMZA: SANAYİ EMİSYONLARI (SO₂ + VOC + AĞIR YANMA)',
+                conf: 'GÜVEN: %96.4',
+                bars: [35, 48, 28, 62, 92, 85, 74, 40, 68, 95, 78, 60],
+                color: 'bg-cyan-400',
+                action: 'Otonom Aksiyon: Kestel OSB yönünden (135° GD) gelen yüksek SO₂ ve m/z 131-202 spektral pikleri tespit edildi. İlgili sanayi bölgesindeki baca filtresi ve arıtma denetim protokolü otomatik tetiklendi.'
+            },
+            trafik: {
+                label: 'KİMYASAL İMZA: TRAFİK EGZOZU (HOA - NOₓ + HİDROKARBON)',
+                conf: 'GÜVEN: %94.1',
+                bars: [88, 95, 82, 45, 30, 22, 18, 25, 15, 12, 10, 8],
+                color: 'bg-amber-400',
+                action: 'Otonom Aksiyon: D200 Karayolu hattında m/z 43, 55 ve 57 hidrokarbon pikleri (HOA) baskın. Akıllı kavşak sinyalizasyon optimizasyonu ve ağır vasıta trafik akış yönlendirmesi devreye alındı.'
+            },
+            biyokutle: {
+                label: 'KİMYASAL İMZA: BİYOKÜTLE & KATI YAKIT YANMASI (BBOA)',
+                conf: 'GÜVEN: %91.8',
+                bars: [65, 42, 96, 70, 38, 52, 44, 30, 48, 35, 25, 20],
+                color: 'bg-rose-400',
+                action: 'Otonom Aksiyon: Kış inversiyonu altında m/z 60 ve 73 levoglukozan izleri (BBOA) tespit edildi. Konut/sanayi katı yakıt denetimi ve yerel halk sağlığı hava kalitesi uyarısı yayınlandı.'
+            }
+        };
+
+        function selectSource(key) {
+            const data = sourceProfiles[key];
+            document.getElementById('spec-label').textContent = data.label;
+            document.getElementById('spec-conf').textContent = data.conf;
+            document.getElementById('source-action-text').innerHTML = `<strong class="text-emerald-400">${data.action.split(':')[0]}:</strong>${data.action.split(':')[1]}`;
+
+            const barsContainer = document.getElementById('spectrum-bars');
+            barsContainer.innerHTML = '';
+            data.bars.forEach(val => {
+                const bar = document.createElement('div');
+                bar.className = `flex-1 ${data.color} rounded-t transition-all duration-500 opacity-85 hover:opacity-100`;
+                bar.style.height = `${val}%`;
+                barsContainer.appendChild(bar);
+            });
+
+            document.querySelectorAll('.source-btn').forEach(btn => {
+                const active = btn.dataset.src === key;
+                btn.className = active
+                    ? 'source-btn px-2.5 py-1 rounded text-xs font-mono-tech bg-cyan-500/20 border border-cyan-500/50 text-cyan-300'
+                    : 'source-btn px-2.5 py-1 rounded text-xs font-mono-tech bg-slate-800 border border-slate-700 text-slate-400 hover:text-white';
+            });
+        }
+        selectSource('sanayi');
+
+        // ==========================================
+        // 3. BÜTÇE & İŞ PLANI SEKMELERİ VE HESAPLAYICI
+        // ==========================================
+        function switchPlanTab(tabName) {
+            document.querySelectorAll('.plan-tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+            document.querySelectorAll('.plan-tab-btn').forEach(btn => {
+                const isActive = btn.dataset.tab === tabName;
+                btn.className = isActive
+                    ? 'plan-tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-500 text-slate-950 transition'
+                    : 'plan-tab-btn px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700 transition';
+            });
+        }
+
+        const nodeSlider = document.getElementById('node-slider');
+        nodeSlider.addEventListener('input', e => {
+            const count = parseInt(e.target.value, 10);
+            const unitCost = 225.50;
+            const refStationCost = 200000; // Ortalama RGI istasyonu
+            const totalCost = count * unitCost;
+            const savings = (count * refStationCost) - totalCost;
+
+            let regionNote = 'OSB Ağı';
+            if (count === 1) regionNote = 'Tekil Pilot İstasyon';
+            else if (count <= 5) regionNote = 'Kestel OSB Çeperi';
+            else if (count <= 12) regionNote = 'Kestel + İnegöl OSB';
+            else regionNote = 'Tüm Bursa 18 OSB Havzası';
+
+            document.getElementById('node-count-label').textContent = `${count} Düğüm (${regionNote})`;
+            document.getElementById('total-network-cost').textContent = totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+            document.getElementById('total-savings').textContent = 'Tasarruf: ~' + Math.round(savings).toLocaleString('tr-TR') + ' €';
+        });
+
+        // ==========================================
+        // 4. CANLI TELEMETRİ SİMÜLASYONU (HERO PANEL)
+        // ==========================================
+        setInterval(() => {
+            const pm25 = (65 + Math.random() * 8).toFixed(1);
+            const no2 = (84 + Math.random() * 9).toFixed(1);
+            const deg = Math.round(130 + Math.random() * 14);
+            const kt = (13.5 + Math.random() * 1.8).toFixed(1);
+
+            document.getElementById('val-pm25').textContent = pm25;
+            document.getElementById('val-no2').textContent = no2;
+            document.getElementById('val-wind').textContent = `${deg}° GD @ ${kt} KT`;
+            document.getElementById('wind-arrow').style.transform = `rotate(${deg}deg)`;
+        }, 3200);
+    </script>
+</body>
+</html>
